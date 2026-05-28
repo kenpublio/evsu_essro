@@ -10,7 +10,6 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['role']) || $_SESSION['role
 
 $conn = getDB();
 $user_id = $_SESSION['user_id'];
-
 // Get user data
 $stmt = $conn->prepare("SELECT id, username, fullname, student_id FROM users WHERE id = ?");
 $stmt->bind_param("i", $user_id);
@@ -178,16 +177,19 @@ $page_title = 'My Evaluation History - EVSU';
                             <span class="rating-value"><?php echo $rating; ?>/5</span>
                         </div>
                         <div class="comment-section">
-                            <i class="fas fa-comment"></i>
-                            <?php 
-                            $comment_text = trim($eval['comment'] ?? '');
-                            if (!empty($comment_text) && $comment_text !== 'NULL'): 
-                            ?>
-                                <p><?php echo nl2br(htmlspecialchars($comment_text)); ?></p>
-                            <?php else: ?>
-                                <p class="no-comment">No comment provided</p>
-                            <?php endif; ?>
-                        </div>
+    <i class="fas fa-comment"></i>
+    <?php 
+    $comment_text = trim($eval['all_comments'] ?? '');
+    $comment_count = $eval['comment_count'] ?? 0;
+    
+    if (!empty($comment_text) && $comment_text !== 'NULL'): 
+    ?>
+        <p><strong><?php echo $comment_count; ?> comment(s):</strong></p>
+        <p><?php echo nl2br(htmlspecialchars($comment_text)); ?></p>
+    <?php else: ?>
+        <p class="no-comment">No comment provided</p>
+    <?php endif; ?>
+</div>
                     </div>
                 </div>
             <?php endforeach; ?>
