@@ -305,6 +305,7 @@ $page_title = 'Reports & Analytics - Registrar Evaluation';
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     
     <style>
+        
         * { margin: 0; padding: 0; box-sizing: border-box; }
         :root { --evsu-red: #8B0000; --evsu-gold: #FFD700; --evsu-dark: #1a1a1a; --evsu-gray: #f5f5f5; --success-green: #28a745; --warning-orange: #fd7e14; --info-blue: #17a2b8; }
         body { font-family: 'Inter', sans-serif; background: var(--evsu-gray); min-height: 100vh; }
@@ -324,6 +325,22 @@ $page_title = 'Reports & Analytics - Registrar Evaluation';
         .user-actions { display: flex; gap: 10px; margin-top: 3px; }
         .user-actions a { color: white; text-decoration: none; font-size: 0.75rem; opacity: 0.8; }
         .user-actions a:hover { opacity: 1; color: var(--evsu-gold); }
+        .table, .table-responsive table, #evaluationsTable {
+    display: table !important;
+    width: 100%;
+    border-collapse: collapse;
+}
+
+#evaluationsTable tr {
+    display: table-row !important;
+}
+
+#evaluationsTable td, 
+#evaluationsTable th {
+    display: table-cell !important;
+    padding: 8px;
+    border: 1px solid #ddd;
+}
 
         .main-container { display: flex; max-width: 1400px; margin: 20px auto; gap: 20px; padding: 0 20px; }
         .sidebar { width: 280px; background: white; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.08); padding: 20px 0; height: fit-content; position: sticky; top: 100px; }
@@ -382,6 +399,7 @@ $page_title = 'Reports & Analytics - Registrar Evaluation';
         .footer a { color: #ddd; text-decoration: none; margin: 0 15px; font-size: 0.9rem; }
         .footer a:hover { color: var(--evsu-gold); }
         .copyright { font-size: 0.85rem; color: #777; margin-top: 10px; }
+        
 
         @media (max-width: 768px) { .main-container { flex-direction: column; } .sidebar { width: 100%; position: static; } .chart-row { grid-template-columns: 1fr; } .filter-form { flex-direction: column; align-items: stretch; } }
     </style>
