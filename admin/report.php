@@ -81,9 +81,7 @@ $query = "
            u.fullname, 
            u.username, 
            u.student_id,
-           u.email,
            DATE(r.submitted_at) as eval_date,
-           TIME(r.submitted_at) as eval_time,
            st.name as service_name
     FROM responses r
     JOIN users u ON r.user_id = u.id
@@ -195,38 +193,32 @@ $stmt->execute();
 $recent_comments = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
 // ============================================
+// GET OVERALL SUGGESTIONS & RECOMMENDATIONS
+// ============================================
+$recent_suggestions = [];
+$suggestions_query = "
+    SELECT 
+        r.submitted_at,
+        u.fullname,
+        u.username,
+        u.student_id,
+        r.report_text as suggestion
+    FROM reports r
+    JOIN users u ON r.user_id = u.id
+    WHERE r.report_text IS NOT NULL AND r.report_text != ''
+    ORDER BY r.submitted_at DESC
+    LIMIT 20
+";
+$suggestions_result = $conn->query($suggestions_query);
+$recent_suggestions = $suggestions_result ? $suggestions_result->fetch_all(MYSQLI_ASSOC) : [];
+
+// ============================================
 // HANDLE CSV EXPORT
 // ============================================
 if ($export && isset($_GET['export']) && $_GET['export'] == 'csv') {
-    header('Content-Type: text/csv; charset=utf-8');
-    header('Content-Disposition: attachment; filename="registrar_report_' . date('Y-m-d') . '.csv"');
-    
-    $output = fopen('php://output', 'w');
-    fwrite($output, "\xEF\xBB\xBF");
-    
-    fputcsv($output, ['Date', 'Student Name', 'Student ID', 'Service', 'Question', 'Rating', 'Comment']);
-    
-    foreach ($report_data as $row) {
-        fputcsv($output, [
-            date('Y-m-d H:i', strtotime($row['submitted_at'])),
-            $row['fullname'] ?? $row['username'],
-            $row['student_id'] ?? 'N/A',
-            $row['service_name'] ?? 'General',
-            $row['question_text'] ?? '',
-            $row['rating'] ?? '',
-            $row['answer'] ?? ''
-        ]);
-    }
-    
-    fclose($output);
-    exit();
-}
-// Handle CSV Export
-if (isset($_GET['export']) && $_GET['export'] == 'csv') {
     $export_service = isset($_GET['service_id']) ? (int)$_GET['service_id'] : 0;
     $export_type = isset($_GET['type']) ? $_GET['type'] : 'overall';
     
-    // Get service name for filename
     $service_name = 'All_Services';
     if ($export_service > 0) {
         $service_query = $conn->prepare("SELECT name FROM service_types WHERE id = ?");
@@ -238,7 +230,6 @@ if (isset($_GET['export']) && $_GET['export'] == 'csv') {
         }
     }
     
-    // Get date range for filename
     $date_range = '';
     if ($export_type == 'monthly' && isset($_GET['month'])) {
         $date_range = '_' . $_GET['month'];
@@ -248,7 +239,6 @@ if (isset($_GET['export']) && $_GET['export'] == 'csv') {
         $date_range = '_' . date('Y-m-d');
     }
     
-    // Build filename
     $filename = "registrar_report_{$service_name}{$date_range}.csv";
     
     header('Content-Type: text/csv; charset=utf-8');
@@ -257,10 +247,8 @@ if (isset($_GET['export']) && $_GET['export'] == 'csv') {
     $output = fopen('php://output', 'w');
     fwrite($output, "\xEF\xBB\xBF");
     
-    // Headers
     fputcsv($output, ['Date', 'Student Name', 'Student ID', 'Service', 'Question', 'Rating', 'Comment']);
     
-    // Build query
     $sql = "SELECT r.*, u.fullname, u.username, u.student_id, st.name as service_name 
             FROM responses r
             JOIN users u ON r.user_id = u.id
@@ -427,7 +415,7 @@ $page_title = 'Reports & Analytics - Registrar Evaluation';
             <a href="evaluations.php" class="nav-item"><span class="nav-icon"><i class="fas fa-clipboard-list"></i></span><span>All Evaluations</span></a>
             <a href="questions.php" class="nav-item"><span class="nav-icon"><i class="fas fa-question-circle"></i></span><span>Survey Questions</span></a>
             <a href="students.php" class="nav-item"><span class="nav-icon"><i class="fas fa-user-graduate"></i></span><span>Student List</span></a>
-            <a href="report.php" class="nav-item">
+            <a href="reports.php" class="nav-item active">
                 <span class="nav-icon"><i class="fas fa-chart-bar"></i></span>
                 <span>Reports</span>
             </a>
@@ -458,7 +446,6 @@ $page_title = 'Reports & Analytics - Registrar Evaluation';
     const currentDateFrom = urlParams.get('date_from') || '<?php echo date('Y-m-01'); ?>';
     const currentDateTo = urlParams.get('date_to') || '<?php echo date('Y-m-t'); ?>';
     
-    // Get elements
     const serviceSelect = document.getElementById('serviceTypeSelect');
     const printBtn = document.getElementById('printBtn');
     
@@ -549,9 +536,9 @@ $page_title = 'Reports & Analytics - Registrar Evaluation';
             
             <?php if (!empty($top_students)): ?>
             <div class="table-card">
-                <h3><i class="fas fa-trophy"></i> Top Performing Students (5+ evaluations)</h3>
+                <h3><i class="fas fa-trophy"></i> Top Performing Students</h3>
                 <table class="table">
-                    <thead><tr><th>Student</th><th>Student ID</th><th>Evaluations</th><th>Average Rating</th><th>Stars</th></tr></thead>
+                    <thead><tr><th>Student</th><th>Student ID</th><th>Evaluations</th><th>Avg Rating</th><th>Stars</th></tr></thead>
                     <tbody>
                         <?php foreach ($top_students as $s): ?>
                         <tr>
@@ -586,11 +573,41 @@ $page_title = 'Reports & Analytics - Registrar Evaluation';
             </div>
             <?php endif; ?>
 
+            <!-- Overall Suggestions & Recommendations Table -->
+            <?php if (!empty($recent_suggestions)): ?>
+            <div class="table-card">
+                <h3><i class="fas fa-lightbulb"></i> Overall Suggestions & Recommendations</h3>
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Student</th>
+                            <th>Student ID</th>
+                            <th>Suggestion / Recommendation</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($recent_suggestions as $s): ?>
+                        <tr>
+                            <td><?php echo date('M d, Y', strtotime($s['submitted_at'])); ?></td>
+                            <td><?php echo htmlspecialchars($s['fullname'] ?? $s['username']); ?></td>
+                            <td><?php echo htmlspecialchars($s['student_id'] ?? 'N/A'); ?></td>
+                            <td>
+                                <div class="comment-box" style="max-width: 400px; white-space: pre-wrap;">
+                                    "<?php echo htmlspecialchars($s['suggestion'] ?? ''); ?>"
+                                </div>
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+            <?php endif; ?>
+
             <!-- Detailed Evaluations Table -->
             <div class="table-card">
                 <h3><i class="fas fa-list"></i> Detailed Evaluations</h3>
                 
-                <!-- Search Bar -->
                 <div style="margin-bottom: 20px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
                     <div style="flex: 1; min-width: 250px;">
                         <input type="text" id="searchInput" class="form-control" placeholder="🔍 Search by student name, ID, email, or question..." style="padding: 10px 15px;">
@@ -625,7 +642,7 @@ $page_title = 'Reports & Analytics - Registrar Evaluation';
                                 <th>Question</th>
                                 <th>Rating</th>
                                 <th>Comment</th>
-                            </tr>
+                            </table>
                         </thead>
                         <tbody id="tableBody">
                             <?php $display_count = 0; foreach ($report_data as $row): if ($display_count++ >= 50) break; ?>
@@ -659,10 +676,8 @@ $page_title = 'Reports & Analytics - Registrar Evaluation';
     </div>
 
     <script>
-        // Search and filter functionality
         const searchInput = document.getElementById('searchInput');
         const ratingFilter = document.getElementById('ratingFilter');
-        const tableBody = document.getElementById('tableBody');
         const noResults = document.getElementById('noResults');
         const filterCount = document.getElementById('filterCount');
         
@@ -699,14 +714,12 @@ $page_title = 'Reports & Analytics - Registrar Evaluation';
                 }
             });
             
-            // Show/hide no results message
             if (visibleCount === 0) {
                 noResults.style.display = 'block';
             } else {
                 noResults.style.display = 'none';
             }
             
-            // Update filter count
             filterCount.textContent = `Showing ${visibleCount} of ${rows.length} entries`;
         }
         
@@ -716,42 +729,30 @@ $page_title = 'Reports & Analytics - Registrar Evaluation';
             filterTable();
         }
         
-        // Add event listeners
         searchInput.addEventListener('keyup', filterTable);
         ratingFilter.addEventListener('change', filterTable);
         
-        // Initialize filter count on page load
         document.addEventListener('DOMContentLoaded', function() {
             filterTable();
         });
 
-        
         new Chart(document.getElementById('ratingChart'), {
             type: 'pie',
-            data: { labels: ['1 Star', '2 Stars', '3 Stars', '4 Stars', '5 Stars'], datasets: [{ data: [<?php echo $rating_distribution[1]; ?>, <?php echo $rating_distribution[2]; ?>, <?php echo $rating_distribution[3]; ?>, <?php echo $rating_distribution[4]; ?>, <?php echo $rating_distribution[5]; ?>], backgroundColor: ['#dc3545', '#fd7e14', '#ffc107', '#17a2b8', '#28a745'], borderWidth: 0 }] },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+            data: { labels: ['1 Star', '2 Stars', '3 Stars', '4 Stars', '5 Stars'], datasets: [{ data: [<?php echo $rating_distribution[1]; ?>, <?php echo $rating_distribution[2]; ?>, <?php echo $rating_distribution[3]; ?>, <?php echo $rating_distribution[4]; ?>, <?php echo $rating_distribution[5]; ?>], backgroundColor: ['#dc3545', '#fd7e14', '#ffc107', '#17a2b8', '#28a745'] }] },
+            options: { responsive: true, maintainAspectRatio: false }
         });
+        
         new Chart(document.getElementById('trendsChart'), {
             type: 'line',
-            data: { labels: [<?php foreach ($daily_trends as $t): ?> '<?php echo date('M d', strtotime($t['date'])); ?>', <?php endforeach; ?>], datasets: [{ label: 'Number of Evaluations', data: [<?php foreach ($daily_trends as $t): ?> <?php echo $t['count']; ?>, <?php endforeach; ?>], borderColor: '#8B0000', backgroundColor: 'rgba(139,0,0,0.1)', tension: 0.4, fill: true }] },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+            data: { labels: [<?php foreach ($daily_trends as $t): ?>'<?php echo date('M d', strtotime($t['date'])); ?>', <?php endforeach; ?>], datasets: [{ label: 'Evaluations', data: [<?php foreach ($daily_trends as $t): ?><?php echo $t['count']; ?>, <?php endforeach; ?>], borderColor: '#8B0000', fill: true }] },
+            options: { responsive: true, maintainAspectRatio: false }
         });
-    
     </script>
 
     <style>
-        /* Additional styles for search bar */
-        #searchInput:focus {
-            border-color: var(--evsu-red);
-            box-shadow: 0 0 0 3px rgba(139, 0, 0, 0.1);
-        }
-        .table-responsive {
-            max-height: 600px;
-            overflow-y: auto;
-        }
-        .evaluation-row:hover {
-            background: #f8f9fa;
-        }
+        #searchInput:focus { border-color: var(--evsu-red); box-shadow: 0 0 0 3px rgba(139, 0, 0, 0.1); }
+        .table-responsive { max-height: 600px; overflow-y: auto; }
+        .evaluation-row:hover { background: #f8f9fa; }
     </style>
 </body>
 </html>
