@@ -132,6 +132,10 @@ $questions = $questions_query->get_result()->fetch_all(MYSQLI_ASSOC);
 // HANDLE FORM SUBMISSION
 // ============================================
 
+// ============================================
+// HANDLE FORM SUBMISSION
+// ============================================
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$already_evaluated && $survey_active) {
     
     $ratings = [];
@@ -143,11 +147,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$already_evaluated && $survey_acti
         $rating_key = 'rating_' . ($index + 1);
         $answer_key = 'answer_' . ($index + 1);
         
+        // Get rating
         if (isset($_POST[$rating_key]) && !empty($_POST[$rating_key])) {
             $ratings[$index] = (int)$_POST[$rating_key];
         }
         
-        // Get comments/answers
+        // GET COMMENT/ANSWER - THIS IS THE KEY FIX
         if (isset($_POST[$answer_key]) && !empty(trim($_POST[$answer_key]))) {
             $answers[$index] = trim($_POST[$answer_key]);
         } else {
@@ -159,7 +164,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$already_evaluated && $survey_acti
     if (count($ratings) !== count($questions)) {
         $error = "Please rate all " . count($questions) . " questions before submitting.";
     } else {
-        // DIRECT INSERT to ensure comments are saved
+        // Direct insert to ensure comments are saved
         $inserted = 0;
         $office_id = $registrar['id'];
         
@@ -168,15 +173,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$already_evaluated && $survey_acti
             $answer = isset($answers[$index]) ? $answers[$index] : '';
             $question_text = $q['question_text'];
             
-            $insert_stmt = $conn->prepare("
-                INSERT INTO responses (user_id, office_id, service_type_id, question_text, rating, answer, submitted_at) 
-                VALUES (?, ?, ?, ?, ?, ?, NOW())
-            ");
+            $insert_stmt = $conn->prepare("INSERT INTO responses (user_id, office_id, service_type_id, question_text, rating, answer, submitted_at) VALUES (?, ?, ?, ?, ?, ?, NOW())");
             $insert_stmt->bind_param("iiisss", $user_id, $office_id, $selected_service_id, $question_text, $rating, $answer);
             
             if ($insert_stmt->execute()) {
                 $inserted++;
             }
+        }
+        
+        // Save overall report comment if provided
+        if (!empty($report)) {
+            $report_stmt = $conn->prepare("INSERT INTO reports (user_id, office_id, report_text, submitted_at) VALUES (?, ?, ?, NOW())");
+            $report_stmt->bind_param("iis", $user_id, $office_id, $report);
+            $report_stmt->execute();
         }
         
         if ($inserted > 0) {
@@ -1175,15 +1184,15 @@ $page_title = 'Evaluate Registrar\'s Office - EVSU';
 
                                     <!-- Optional Comment per Question -->
                                     <div class="comment-section">
-                                        <label for="answer_<?php echo $num; ?>">
-                                            <i class="fas fa-comment"></i> Additional Comments (Optional)
-                                        </label>
-                                        <textarea class="form-control" 
-                                                  id="answer_<?php echo $num; ?>" 
-                                                  name="answer_<?php echo $num; ?>" 
-                                                  rows="2"
-                                                  placeholder="Any specific feedback for this question?"></textarea>
-                                    </div>
+    <label for="answer_<?php echo $num; ?>">
+        <i class="fas fa-comment"></i> Additional Comments (Optional)
+    </label>
+    <textarea class="form-control" 
+              id="answer_<?php echo $num; ?>" 
+              name="answer_<?php echo $num; ?>" 
+              rows="2"
+              placeholder="Any specific feedback for this question?"></textarea>
+</div>
                                 </div>
                             <?php endforeach; ?>
                         </div>
