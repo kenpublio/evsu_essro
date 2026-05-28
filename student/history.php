@@ -39,19 +39,13 @@ $stmt->close();
 
 // Get evaluation history - ONE row per submission with ALL comments combined
 // Get evaluation history - ONE row per submission with comments
+// Get evaluation history with comments
 $query = "
     SELECT 
         MAX(r.submitted_at) as submitted_at,
         st.name as service_name,
         ROUND(AVG(r.rating), 1) as rating,
-        GROUP_CONCAT(DISTINCT 
-            CASE 
-                WHEN r.answer IS NOT NULL AND r.answer != '' AND r.answer != 'NULL' 
-                THEN r.answer 
-                ELSE NULL 
-            END 
-            SEPARATOR ' | '
-        ) as comment
+        MAX(r.answer) as comment
     FROM responses r
     JOIN service_types st ON r.service_type_id = st.id
     WHERE r.user_id = ?
@@ -64,7 +58,6 @@ $stmt->bind_param("iii", $user_id, $limit, $offset);
 $stmt->execute();
 $evaluations = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
-
 // Get overall stats
 $stats_query = "
     SELECT 
@@ -453,24 +446,11 @@ $page_title = 'My Evaluation History - EVSU';
                             </div>
                             <span class="rating-value"><?php echo $rating; ?>/5</span>
                         </div>
-                        <div class="comment-section">
+<div class="comment-section">
     <i class="fas fa-comment"></i>
     <?php 
-    // Try to get comment from different possible sources
-    $comment_text = '';
-    
-    if (!empty($eval['comment']) && $eval['comment'] !== 'NULL') {
-        $comment_text = $eval['comment'];
-    } elseif (!empty($eval['last_comment']) && $eval['last_comment'] !== 'NULL') {
-        $comment_text = $eval['last_comment'];
-    }
-    
-    // Also check if there's a specific answer column
-    if (isset($eval['answer']) && !empty($eval['answer']) && $eval['answer'] !== 'NULL') {
-        $comment_text = $eval['answer'];
-    }
-    
-    if (!empty($comment_text)): 
+    $comment_text = trim($eval['comment'] ?? '');
+    if (!empty($comment_text) && $comment_text !== 'NULL'): 
     ?>
         <p><?php echo nl2br(htmlspecialchars($comment_text)); ?></p>
     <?php else: ?>
