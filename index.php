@@ -13,7 +13,7 @@ require_once 'includes/functions.php';
 <div class="container py-5">
     <div class="jumbotron" style="background: linear-gradient(to right, rgba(139, 0, 0, 0.05), rgba(165, 42, 42, 0.05));">
         <h1 class="display-4" style="color: #8B0000;">Welcome to EVSU-OCC EVALUATION SURVEY SYSTEM FOR THE REGISTRAR</h1>
-        <p class="lead">A comprehensive platform for course and instructor evaluations to enhance the quality of education at Eastern Visayas State University - Ormoc City Campus. (testing)</p>
+        <p class="lead">A comprehensive platform for course and instructor evaluations to enhance the quality of education at Eastern Visayas State University - Ormoc City Campus.</p>
         <hr class="my-4">
         
         <?php if (isset($_SESSION['user_id']) && $_SESSION['user_id']): ?>
