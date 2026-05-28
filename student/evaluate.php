@@ -138,16 +138,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$already_evaluated && $survey_acti
     $answers = [];
     $report = isset($_POST['report']) ? trim($_POST['report']) : '';
     
-    // Collect ratings from form
+    // Collect ratings and answers from form
     foreach ($questions as $index => $q) {
         $rating_key = 'rating_' . ($index + 1);
+        $answer_key = 'answer_' . ($index + 1);
+        
         if (isset($_POST[$rating_key]) && !empty($_POST[$rating_key])) {
             $ratings[$index] = (int)$_POST[$rating_key];
         }
         
-        $answer_key = 'answer_' . ($index + 1);
-        if (isset($_POST[$answer_key]) && !empty($_POST[$answer_key])) {
+        // Get comments/answers
+        if (isset($_POST[$answer_key]) && !empty(trim($_POST[$answer_key]))) {
             $answers[$index] = trim($_POST[$answer_key]);
+        } else {
+            $answers[$index] = '';
         }
     }
     
@@ -155,19 +159,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$already_evaluated && $survey_acti
     if (count($ratings) !== count($questions)) {
         $error = "Please rate all " . count($questions) . " questions before submitting.";
     } else {
-        // Submit evaluation with service type
-        $result = $functions->submitRegistrarEvaluationWithService($user_id, $selected_service_id, $ratings, $answers, $report);
+        // DIRECT INSERT to ensure comments are saved
+        $inserted = 0;
+        $office_id = $registrar['id'];
         
-        if ($result['success']) {
+        foreach ($questions as $index => $q) {
+            $rating = isset($ratings[$index]) ? $ratings[$index] : 5;
+            $answer = isset($answers[$index]) ? $answers[$index] : '';
+            $question_text = $q['question_text'];
+            
+            $insert_stmt = $conn->prepare("
+                INSERT INTO responses (user_id, office_id, service_type_id, question_text, rating, answer, submitted_at) 
+                VALUES (?, ?, ?, ?, ?, ?, NOW())
+            ");
+            $insert_stmt->bind_param("iiisss", $user_id, $office_id, $selected_service_id, $question_text, $rating, $answer);
+            
+            if ($insert_stmt->execute()) {
+                $inserted++;
+            }
+        }
+        
+        if ($inserted > 0) {
             $success = true;
-            $message = $result['message'];
+            $message = "Thank you for evaluating the $service_name service! ($inserted responses recorded)";
             $_SESSION['last_service'] = $service_name;
         } else {
-            $error = $result['message'];
+            $error = "Failed to submit evaluation. Please try again.";
         }
     }
 }
-
 $page_title = 'Evaluate Registrar\'s Office - EVSU';
 ?>
 
