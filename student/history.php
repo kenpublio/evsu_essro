@@ -37,12 +37,16 @@ $total_pages = ceil($total / $limit);
 $stmt->close();
 
 // Get evaluation history with comments
+// Get evaluation history with comments from reports table
 $query = "
     SELECT 
         MAX(r.submitted_at) as submitted_at,
         st.name as service_name,
         ROUND(AVG(r.rating), 1) as rating,
-        MAX(r.answer) as comment
+        (SELECT report_text FROM reports 
+         WHERE user_id = r.user_id 
+         AND DATE(submitted_at) = DATE(r.submitted_at) 
+         ORDER BY id DESC LIMIT 1) as comment
     FROM responses r
     JOIN service_types st ON r.service_type_id = st.id
     WHERE r.user_id = ?
