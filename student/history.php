@@ -38,13 +38,15 @@ $total_pages = ceil($total / $limit);
 $stmt->close();
 
 // Get evaluation history - ONE row per submission with ALL comments combined
+// Get evaluation history - ONE row per submission with comments
 $query = "
     SELECT 
         MIN(r.id) as id,
         MAX(r.submitted_at) as submitted_at,
         st.name as service_name,
         ROUND(AVG(r.rating), 1) as rating,
-        GROUP_CONCAT(DISTINCT r.answer SEPARATOR ' | ') as comment
+        GROUP_CONCAT(DISTINCT r.answer SEPARATOR ' | ') as comment,
+        MAX(r.answer) as last_comment
     FROM responses r
     JOIN service_types st ON r.service_type_id = st.id
     WHERE r.user_id = ?
@@ -449,10 +451,21 @@ $page_title = 'My Evaluation History - EVSU';
                         <div class="comment-section">
     <i class="fas fa-comment"></i>
     <?php 
-    // Get comment from answer column (per question) or combined
-    $comment_text = trim($eval['comment'] ?? '');
+    // Try to get comment from different possible sources
+    $comment_text = '';
     
-    if (!empty($comment_text) && $comment_text !== 'NULL'): 
+    if (!empty($eval['comment']) && $eval['comment'] !== 'NULL') {
+        $comment_text = $eval['comment'];
+    } elseif (!empty($eval['last_comment']) && $eval['last_comment'] !== 'NULL') {
+        $comment_text = $eval['last_comment'];
+    }
+    
+    // Also check if there's a specific answer column
+    if (isset($eval['answer']) && !empty($eval['answer']) && $eval['answer'] !== 'NULL') {
+        $comment_text = $eval['answer'];
+    }
+    
+    if (!empty($comment_text)): 
     ?>
         <p><?php echo nl2br(htmlspecialchars($comment_text)); ?></p>
     <?php else: ?>
