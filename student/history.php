@@ -41,12 +41,17 @@ $stmt->close();
 // Get evaluation history - ONE row per submission with comments
 $query = "
     SELECT 
-        MIN(r.id) as id,
         MAX(r.submitted_at) as submitted_at,
         st.name as service_name,
         ROUND(AVG(r.rating), 1) as rating,
-        GROUP_CONCAT(DISTINCT r.answer SEPARATOR ' | ') as comment,
-        MAX(r.answer) as last_comment
+        GROUP_CONCAT(DISTINCT 
+            CASE 
+                WHEN r.answer IS NOT NULL AND r.answer != '' AND r.answer != 'NULL' 
+                THEN r.answer 
+                ELSE NULL 
+            END 
+            SEPARATOR ' | '
+        ) as comment
     FROM responses r
     JOIN service_types st ON r.service_type_id = st.id
     WHERE r.user_id = ?
