@@ -1,0 +1,6 @@
+# Node modules
+/nood_modules/
+package-lock.json
+package.json
+/.ssh/
+

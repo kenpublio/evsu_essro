@@ -1,0 +1,69 @@
+name: Deploy to Hostinger
+
+on:
+  push:
+    branches:
+      - prod
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-hostinger
+  cancel-in-progress: false
+      
+jobs:
+  deploy:
+    name: Upload files and run database migrations
+    runs-on: ubuntu-latest
+    env:
+      HOSTINGER_HOST: 145.79.14.190
+      HOSTINGER_PORT: 65002
+      HOSTINGER_USER: u656591888
+      HOSTINGER_PATH: /home/u656591888/domains/yourdomain.com/public_html
+    steps:
+      - name: Checkout production code  
+        uses: actions/checkout@v4
+
+      - name: Configure SSH access
+        shell: bash
+        run: |
+          # Stop the workflow if any command fails 
+          set -euo pipefail
+          # Create SSH folder used by the runner  
+          mkdir -p ~/.ssh
+          # Write the Hostinger private key from GitHub Secrets into a temporary key file 
+          printf '%s\n' "${{ secrets.HOSTINGER_PRIVATE_KEY }}" > ~/.ssh/hostinger_key
+          # Restrict the permissions to read and write 
+          chmod 600 ~/.ssh/hostinger_key
+          # Save Hostinger's server fingerprint so SSH can connect from GitHub to Hostinger 
+          ssh-keyscan -p "$HOSTINGER_PORT" "$HOSTINGER_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Test SSH Connection
+        shell: bash
+        run: |
+          ssh -i ~/.ssh/hostinger_key -p "$HOSTINGER_PORT" -o ConnectTimeout=10 "$HOSTINGER_USER@$HOSTINGER_HOST" "echo 'SSH connection successful'"
+
+      - name: Upload new and modified files
+        shell: bash
+        run: |
+          # Store the SSH command so that RSYNC will be able to connect to Hostinger 
+          RSYNC_SSH="ssh -i ~/.ssh/hostinger_key -p $HOSTINGER_PORT" 
+          # Build the RSYNC options list
+          RSYNC_OPTIONS=(
+            # Archive mode 
+            -a 
+            # Compression mode
+            -z
+            # Folders and files below are excluded to be uploaded to Hostinger 
+            --exclude ".git/"
+            --exclude ".github/"
+            --exclude "node_modules/"
+            --exclude ".env"
+            --exclude "package-lock.json"
+            --exclude "package.json"
+          )
+          rsync "${RSYNC_OPTIONS[@]}" -e "$RSYNC_SSH" ./ "$HOSTINGER_USER@$HOSTINGER_HOST:$HOSTINGER_PATH/"
+
+      - name: Run database migrations
+        shell: bash
+        run: |
+          ssh -i ~/.ssh/hostinger_key -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" "cd '$HOSTINGER_PATH' && php app/run_migrations.php"
