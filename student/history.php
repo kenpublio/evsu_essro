@@ -10,6 +10,7 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['role']) || $_SESSION['role
 
 $conn = getDB();
 $user_id = $_SESSION['user_id'];
+
 // Get user data
 $stmt = $conn->prepare("SELECT id, username, fullname, student_id FROM users WHERE id = ?");
 $stmt->bind_param("i", $user_id);
@@ -17,29 +18,10 @@ $stmt->execute();
 $user = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
-// Pagination
-$page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
-$limit = 10;
-$offset = ($page - 1) * $limit;
-
-// Get total count
-$total_query = "
-    SELECT COUNT(DISTINCT CONCAT(DATE(r.submitted_at), '-', IFNULL(r.service_type_id, 0))) as total
-    FROM responses r 
-    WHERE r.user_id = ?
-";
-$stmt = $conn->prepare($total_query);
-$stmt->bind_param("i", $user_id);
-$stmt->execute();
-$total_result = $stmt->get_result();
-$total = $total_result->fetch_assoc()['total'] ?? 0;
-$total_pages = ceil($total / $limit);
-$stmt->close();
-
-// Get evaluation history with comments
 // Get evaluation history with comments from reports table
-$query = "
+$sql = "
     SELECT 
+        DATE(r.submitted_at) as eval_date,
         MAX(r.submitted_at) as submitted_at,
         st.name as service_name,
         ROUND(AVG(r.rating), 1) as rating,
@@ -52,16 +34,15 @@ $query = "
     WHERE r.user_id = ?
     GROUP BY DATE(r.submitted_at), r.service_type_id
     ORDER BY submitted_at DESC
-    LIMIT ? OFFSET ?
 ";
-$stmt = $conn->prepare($query);
-$stmt->bind_param("iii", $user_id, $limit, $offset);
+$stmt = $conn->prepare($sql);
+$stmt->bind_param("i", $user_id);
 $stmt->execute();
 $evaluations = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
 
 // Get overall stats
-$stats_query = "
+$stats_sql = "
     SELECT 
         COUNT(DISTINCT CONCAT(DATE(submitted_at), '-', IFNULL(service_type_id, 0))) as total_evaluations,
         ROUND(AVG(rating), 1) as avg_rating,
@@ -69,7 +50,7 @@ $stats_query = "
     FROM responses
     WHERE user_id = ?
 ";
-$stmt = $conn->prepare($stats_query);
+$stmt = $conn->prepare($stats_sql);
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $stats = $stmt->get_result()->fetch_assoc();
@@ -180,20 +161,17 @@ $page_title = 'My Evaluation History - EVSU';
                             </div>
                             <span class="rating-value"><?php echo $rating; ?>/5</span>
                         </div>
-                        <div class="comment-section">
-    <i class="fas fa-comment"></i>
-    <?php 
-    $comment_text = trim($eval['all_comments'] ?? '');
-    $comment_count = $eval['comment_count'] ?? 0;
-    
-    if (!empty($comment_text) && $comment_text !== 'NULL'): 
-    ?>
-        <p><strong><?php echo $comment_count; ?> comment(s):</strong></p>
-        <p><?php echo nl2br(htmlspecialchars($comment_text)); ?></p>
-    <?php else: ?>
-        <p class="no-comment">No comment provided</p>
-    <?php endif; ?>
-</div>
+                                        <div class="comment-section">
+                    <i class="fas fa-comment"></i> <strong>Comment:</strong><br>
+                    <?php 
+                    $comment = trim($eval['comment'] ?? '');
+                    if (!empty($comment) && $comment !== 'NULL'): 
+                        echo nl2br(htmlspecialchars($comment));
+                    else: 
+                        echo '<span class="no-comment">No comment provided</span>';
+                    endif; 
+                    ?>
+                </div>
                     </div>
                 </div>
             <?php endforeach; ?>
